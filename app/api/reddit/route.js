@@ -2,6 +2,10 @@
 import axios from 'axios';
 import { NextResponse } from 'next/server';
 
+const REDDIT_CLIENT_ID = process.env.REDDIT_CLIENT_ID;
+const REDDIT_CLIENT_SECRET = process.env.REDDIT_CLIENT_SECRET;
+const REDDIT_USER_AGENT = process.env.REDDIT_USER_AGENT;
+
 export async function GET(req) {
   const { searchParams } = new URL(req.url);
   const query = searchParams.get('query');
@@ -11,9 +15,15 @@ export async function GET(req) {
   }
 
   try {
+    // Reddit API authentication headers
+    const headers = {
+      'User-Agent': REDDIT_USER_AGENT,
+      'Authorization': `Basic ${Buffer.from(`${REDDIT_CLIENT_ID}:${REDDIT_CLIENT_SECRET}`).toString('base64')}`
+    };
+
     // Fetch search results from Reddit API
-    const searchResponse = await axios.get(`https://www.reddit.com/subreddits/search.json?q=${query}`);
-    
+    const searchResponse = await axios.get(`https://www.reddit.com/subreddits/search.json?q=${query}`, { headers });
+
     // Check if response structure is valid
     if (!searchResponse.data || !searchResponse.data.data || !Array.isArray(searchResponse.data.data.children)) {
       return NextResponse.json({ error: 'Unexpected response structure from Reddit API.' }, { status: 500 });
@@ -25,7 +35,7 @@ export async function GET(req) {
         const name = subreddit.data.display_name;
 
         try {
-          const subredditResponse = await axios.get(`https://www.reddit.com/r/${name}/about.json`);
+          const subredditResponse = await axios.get(`https://www.reddit.com/r/${name}/about.json`, { headers });
           const data = subredditResponse.data.data;
 
           return {
@@ -56,6 +66,7 @@ export async function GET(req) {
       })
     );
 
+    // Filter out any null or undefined values from the response
     const filteredSubredditDetails = subredditDetails.filter(Boolean);
     return NextResponse.json(filteredSubredditDetails);
 
