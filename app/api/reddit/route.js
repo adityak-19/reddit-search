@@ -6,51 +6,26 @@ export async function GET(req) {
   const { searchParams } = new URL(req.url);
   const query = searchParams.get('query');
 
-  console.log('Received query:', query); // Debugging log to check if query parameter is present
-
   if (!query) {
-    return NextResponse.json(
-      { error: 'Query parameter is required.' },
-      { status: 400, headers: { 'Access-Control-Allow-Origin': '*' } }
-    );
+    return NextResponse.json({ error: 'Query parameter is required.' }, { status: 400 });
   }
 
-  // Temporary: Return dummy data for testing
-  const dummyData = [
-    {
-      title: 'Test Subreddit',
-      description: 'This is a test description',
-      created: Date.now() / 1000,
-      restricted: false,
-      members: 12345,
-      online: 200,
-      discord_url: null,
-    },
-  ];
-  console.log('Returning dummy data'); // Debugging log
-  return NextResponse.json(dummyData, { headers: { 'Access-Control-Allow-Origin': '*' } });
-
   try {
-    const searchResponse = await axios.get(
-      `https://www.reddit.com/subreddits/search.json?q=${query}`
-    );
-    console.log('Search response:', searchResponse.data); // Debugging log
-
+    // Fetch search results from Reddit API
+    const searchResponse = await axios.get(`https://www.reddit.com/subreddits/search.json?q=${query}`);
+    
+    // Check if response structure is valid
     if (!searchResponse.data || !searchResponse.data.data || !Array.isArray(searchResponse.data.data.children)) {
-      return NextResponse.json(
-        { error: 'Unexpected response structure from Reddit API.' },
-        { status: 500, headers: { 'Access-Control-Allow-Origin': '*' } }
-      );
+      return NextResponse.json({ error: 'Unexpected response structure from Reddit API.' }, { status: 500 });
     }
 
+    // Process subreddit details
     const subredditDetails = await Promise.all(
       searchResponse.data.data.children.map(async (subreddit) => {
         const name = subreddit.data.display_name;
 
         try {
-          const subredditResponse = await axios.get(
-            `https://www.reddit.com/r/${name}/about.json`
-          );
+          const subredditResponse = await axios.get(`https://www.reddit.com/r/${name}/about.json`);
           const data = subredditResponse.data.data;
 
           return {
@@ -64,7 +39,6 @@ export async function GET(req) {
           };
         } catch (subredditError) {
           if (subredditError.response && subredditError.response.status === 403) {
-            console.warn(`Access denied for subreddit: ${name}`);
             return {
               title: name,
               description: "Access denied or subreddit is private.",
@@ -83,12 +57,10 @@ export async function GET(req) {
     );
 
     const filteredSubredditDetails = subredditDetails.filter(Boolean);
-    return NextResponse.json(filteredSubredditDetails, { headers: { 'Access-Control-Allow-Origin': '*' } });
+    return NextResponse.json(filteredSubredditDetails);
+
   } catch (error) {
     console.error("Failed to fetch data from Reddit API", error);
-    return NextResponse.json(
-      { error: 'Failed to fetch data from Reddit.' },
-      { status: 500, headers: { 'Access-Control-Allow-Origin': '*' } }
-    );
+    return NextResponse.json({ error: 'Failed to fetch data from Reddit.' }, { status: 500 });
   }
 }
